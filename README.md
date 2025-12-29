@@ -11,6 +11,7 @@ Project ini memungkinkan Anda untuk mengontrol satu atau beberapa perangkat Andr
 - ✅ **WebSocket Control** - Komunikasi real-time melalui WebSocket
 - ✅ **Broadcast Mode** - Kirim perintah ke semua perangkat sekaligus
 - ✅ **Web-based Control Panel** - Kontrol melalui browser web
+- ✅ **Device Search** - Filter/cari device berdasarkan nama atau serial
 - ✅ **Interactive CLI** - Mode interaktif untuk testing
 - ✅ **Auto-discovery** - Deteksi otomatis perangkat yang terhubung
 - ✅ **Modifier Keys** - Support Ctrl, Shift, Alt, GUI/Super

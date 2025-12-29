@@ -247,6 +247,48 @@
             opacity: 0.5;
         }
 
+        /* Search Box */
+        .search-box {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 42px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        .device-card.hidden {
+            display: none;
+        }
+
         /* Virtual Keyboard */
         .virtual-keyboard {
             display: grid;
@@ -446,6 +488,13 @@
                             📱 Devices
                             <span class="badge" id="deviceCount">0</span>
                         </h2>
+                    </div>
+
+                    <!-- Search Box -->
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" class="search-input" id="deviceSearch"
+                            placeholder="Search devices by name or serial...">
                     </div>
 
                     <div class="device-grid" id="deviceList">
@@ -795,6 +844,55 @@
             if (e.key === 'Enter') {
                 sendTextBtn.click();
             }
+        });
+
+        // Filter devices based on search query
+        function filterDevices(query) {
+            const deviceCards = document.querySelectorAll('.device-card');
+            let visibleCount = 0;
+
+            query = query.toLowerCase().trim();
+
+            deviceCards.forEach(card => {
+                const deviceName = card.querySelector('.device-name').textContent.toLowerCase();
+                const deviceSerial = card.querySelector('.device-details div:last-child').textContent.toLowerCase();
+
+                const matches = deviceName.includes(query) || deviceSerial.includes(query);
+
+                if (matches || query === '') {
+                    card.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+
+            // Update device count badge  
+            deviceCount.textContent = visibleCount;
+
+            // Show "no results" if needed
+            if (visibleCount === 0 && deviceCards.length > 0) {
+                if (!document.querySelector('.no-results')) {
+                    const noResults = document.createElement('div');
+                    noResults.className = 'empty-state no-results';
+                    noResults.innerHTML = `
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No devices found matching "${query}"</p>
+                    `;
+                    deviceList.appendChild(noResults);
+                }
+            } else {
+                const noResults = document.querySelector('.no-results');
+                if (noResults) {
+                    noResults.remove();
+                }
+            }
+        }
+
+        // Search input listener
+        const deviceSearch = document.getElementById('deviceSearch');
+        deviceSearch.addEventListener('input', (e) => {
+            filterDevices(e.target.value);
         });
 
         // Start connection
