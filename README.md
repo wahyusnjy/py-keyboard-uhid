@@ -12,6 +12,7 @@ Project ini memungkinkan Anda untuk mengontrol satu atau beberapa perangkat Andr
 - ✅ **Broadcast Mode** - Kirim perintah ke semua perangkat sekaligus
 - ✅ **Web-based Control Panel** - Kontrol melalui browser web
 - ✅ **Device Search** - Filter/cari device berdasarkan nama atau serial
+- ✅ **Select2 Dropdown** - Enhanced device selector dengan search built-in
 - ✅ **Interactive CLI** - Mode interaktif untuk testing
 - ✅ **Auto-discovery** - Deteksi otomatis perangkat yang terhubung
 - ✅ **Modifier Keys** - Support Ctrl, Shift, Alt, GUI/Super
