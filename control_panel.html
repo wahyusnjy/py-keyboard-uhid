@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Multi-Device Control Panel v2</title>
+    <meta name="description" content="Auto-managed multi-device control panel with Python WebSocket backend">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a2e;
+            --bg-card: #16213e;
+            --accent-primary: #00d9ff;
+            --accent-secondary: #00ff88;
+            --accent-danger: #ff3366;
+            --accent-warning: #ffaa00;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0c0;
+            --border-color: #2a2a4a;
+            --shadow: 0 8px 32px rgba(0, 217, 255, 0.15);
+            --glow: 0 0 20px rgba(0, 217, 255, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1a3e 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 12px;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .connection-status.connected {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--accent-secondary);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--accent-danger);
+        }
+
+        .connection-status.connecting {
+            background: rgba(255, 170, 0, 0.1);
+            color: var(--accent-warning);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: var(--accent-secondary);
+            box-shadow: 0 0 10px var(--accent-secondary);
+        }
+
+        .status-dot.offline {
+            background: var(--accent-danger);
+        }
+
+        .status-dot.pending {
+            background: var(--accent-warning);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Device Grid */
+        .device-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .device-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .device-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .device-card.selected {
+            border-color: var(--accent-secondary);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        .device-card.connected {
+            border-left: 4px solid var(--accent-secondary);
+        }
+
+        .device-card.disconnected {
+            border-left: 4px solid var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .device-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .device-details {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .device-port {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* Virtual Keyboard */
+        .virtual-keyboard {
+            display: grid;
+            gap: 8px;
+        }
+
+        .keyboard-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .key-btn {
+            min-width: 50px;
+            padding: 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            user-select: none;
+        }
+
+        .key-btn:hover {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 217, 255, 0.3);
+        }
+
+        .key-btn:active {
+            transform: translateY(0);
+        }
+
+        .key-btn.wide {
+            min-width: 140px;
+        }
+
+        .key-btn.wider {
+            min-width: 90px;
+        }
+
+        /* Target Selection */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1);
+        }
+
+        .text-send-group {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, #0099cc 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 217, 255, 0.4);
+        }
+
+        /* Activity Log */
+        .log-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            height: 250px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 6px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .log-entry.info {
+            background: rgba(0, 217, 255, 0.1);
+            border-left: 3px solid var(--accent-primary);
+        }
+
+        .log-entry.success {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 3px solid var(--accent-secondary);
+        }
+
+        .log-entry.error {
+            background: rgba(255, 51, 102, 0.1);
+            border-left: 3px solid var(--accent-danger);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Multi-Device Control Panel v2</h1>
+            <p class="subtitle">Auto-Managed WebSocket Control via Python Backend</p>
+            <div class="connection-status" id="connectionStatus">
+                <div class="status-dot offline"></div>
+                <span>Connecting to server...</span>
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <!-- Left Sidebar: Device List -->
+            <div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            📱 Devices
+                            <span class="badge" id="deviceCount">0</span>
+                        </h2>
+                    </div>
+
+                    <div class="device-grid" id="deviceList">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔍</div>
+                            <p>Loading devices...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Control Interface -->
+            <div>
+                <!-- Virtual Keyboard -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">⌨️ Virtual Keyboard</h2>
+                    </div>
+
+                    <!-- Target Selection -->
+                    <div class="form-group">
+                        <label class="form-label">Control Target</label>
+                        <select class="form-select" id="targetDevice">
+                            <option value="broadcast">🌐 Broadcast to All Devices</option>
+                        </select>
+                    </div>
+
+                    <!-- Text Input -->
+                    <div class="text-send-group">
+                        <input type="text" class="form-input" id="textInput" placeholder="Type text to send...">
+                        <button class="btn btn-primary" id="sendTextBtn">
+                            📤 Send
+                        </button>
+                    </div>
+
+                    <!-- Virtual Keyboard -->
+                    <div class="virtual-keyboard">
+                        <!-- Row 1: Numbers -->
+                        <div class="keyboard-row">
+                            <button class="key-btn" data-key="1">1</button>
+                            <button class="key-btn" data-key="2">2</button>
+                            <button class="key-btn" data-key="3">3</button>
+                            <button class="key-btn" data-key="4">4</button>
+                            <button class="key-btn" data-key="5">5</button>
+                            <button class="key-btn" data-key="6">6</button>
+                            <button class="key-btn" data-key="7">7</button>
+                            <button class="key-btn" data-key="8">8</button>
+                            <button class="key-btn" data-key="9">9</button>
+                            <button class="key-btn" data-key="0">0</button>
+                        </div>
+
+                        <!-- Row 2: QWERTY -->
+                        <div class="keyboard-row">
+                            <button class="key-btn" data-key="Q">Q</button>
+                            <button class="key-btn" data-key="W">W</button>
+                            <button class="key-btn" data-key="E">E</button>
+                            <button class="key-btn" data-key="R">R</button>
+                            <button class="key-btn" data-key="T">T</button>
+                            <button class="key-btn" data-key="Y">Y</button>
+                            <button class="key-btn" data-key="U">U</button>
+                            <button class="key-btn" data-key="I">I</button>
+                            <button class="key-btn" data-key="O">O</button>
+                            <button class="key-btn" data-key="P">P</button>
+                        </div>
+
+                        <!-- Row 3: ASDF -->
+                        <div class="keyboard-row">
+                            <button class="key-btn" data-key="A">A</button>
+                            <button class="key-btn" data-key="S">S</button>
+                            <button class="key-btn" data-key="D">D</button>
+                            <button class="key-btn" data-key="F">F</button>
+                            <button class="key-btn" data-key="G">G</button>
+                            <button class="key-btn" data-key="H">H</button>
+                            <button class="key-btn" data-key="J">J</button>
+                            <button class="key-btn" data-key="K">K</button>
+                            <button class="key-btn" data-key="L">L</button>
+                        </div>
+
+                        <!-- Row 4: ZXCV -->
+                        <div class="keyboard-row">
+                            <button class="key-btn" data-key="Z">Z</button>
+                            <button class="key-btn" data-key="X">X</button>
+                            <button class="key-btn" data-key="C">C</button>
+                            <button class="key-btn" data-key="V">V</button>
+                            <button class="key-btn" data-key="B">B</button>
+                            <button class="key-btn" data-key="N">N</button>
+                            <button class="key-btn" data-key="M">M</button>
+                        </div>
+
+                        <!-- Row 5: Special Keys -->
+                        <div class="keyboard-row">
+                            <button class="key-btn wider" data-key="ESCAPE">ESC</button>
+                            <button class="key-btn wider" data-key="TAB">TAB</button>
+                            <button class="key-btn wide" data-key="SPACE">SPACE</button>
+                            <button class="key-btn wider" data-key="BACKSPACE">⌫</button>
+                            <button class="key-btn wider" data-key="ENTER">ENTER</button>
+                        </div>
+
+                        <!-- Row 6: Arrow Keys -->
+                        <div class="keyboard-row">
+                            <button class="key-btn" data-key="UP">↑</button>
+                            <button class="key-btn" data-key="DOWN">↓</button>
+                            <button class="key-btn" data-key="LEFT">←</button>
+                            <button class="key-btn" data-key="RIGHT">→</button>
+                            <button class="key-btn wider" data-key="DELETE">DEL</button>
+                            <button class="key-btn wider" data-key="HOME">HOME</button>
+                            <button class="key-btn wider" data-key="END">END</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <h2 class="card-title">📋 Activity Log</h2>
+                    </div>
+                    <div class="log-container" id="logContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📝</div>
+                            <p>Waiting for connection...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket Connection to Python Backend
+        const WS_URL = 'ws://localhost:7777';
+        let ws = null;
+        let devices = new Map();
+        let selectedDevice = 'broadcast';
+
+        // DOM Elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const deviceList = document.getElementById('deviceList');
+        const deviceCount = document.getElementById('deviceCount');
+        const targetDevice = document.getElementById('targetDevice');
+        const logContainer = document.getElementById('logContainer');
+        const textInput = document.getElementById('textInput');
+        const sendTextBtn = document.getElementById('sendTextBtn');
+
+        // Connect to Python WebSocket Server
+        function connectToServer() {
+            log('Connecting to Python backend...', 'info');
+
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                log('✅ Connected to Python backend', 'success');
+                updateConnectionStatus('connected');
+
+                // Request device list
+                ws.send(JSON.stringify({ type: 'get_devices' }));
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleServerMessage(data);
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                }
+            };
+
+            ws.onerror = (error) => {
+                log('❌ WebSocket error', 'error');
+                updateConnectionStatus('disconnected');
+            };
+
+            ws.onclose = () => {
+                log('⚠️ Disconnected from server. Reconnecting in 3s...', 'error');
+                updateConnectionStatus('disconnected');
+                setTimeout(connectToServer, 3000);
+            };
+        }
+
+        // Handle messages from Python server
+        function handleServerMessage(data) {
+            switch (data.type) {
+                case 'devices':
+                    updateDeviceList(data.devices);
+                    break;
+                case 'ack':
+                    if (data.status === 'success') {
+                        log(data.message, 'success');
+                    } else {
+                        log(data.message, 'error');
+                    }
+                    break;
+                case 'error':
+                    log('Error: ' + data.message, 'error');
+                    break;
+            }
+        }
+
+        // Update device list display
+        function updateDeviceList(deviceData) {
+            devices.clear();
+            deviceList.innerHTML = '';
+            targetDevice.innerHTML = '<option value="broadcast">🌐 Broadcast to All Devices</option>';
+
+            if (!deviceData || deviceData.length === 0) {
+                deviceList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📱</div>
+                        <p>No devices found</p>
+                    </div>
+                `;
+                deviceCount.textContent = '0';
+                return;
+            }
+
+            deviceData.forEach(dev => {
+                devices.set(dev.serial, dev);
+
+                // Create device card
+                const card = document.createElement('div');
+                card.className = `device-card ${dev.connected ? 'connected' : 'disconnected'}`;
+                card.innerHTML = `
+                    <div class="device-header">
+                        <div class="device-name">${dev.name}</div>
+                        <div class="status-dot ${dev.connected ? 'online' : 'offline'}"></div>
+                    </div>
+                    <div class="device-details">
+                        <div class="device-port">📡 Port: ${dev.port}</div>
+                        <div style="font-size: 0.7rem;">${dev.serial}</div>
+                    </div>
+                `;
+                deviceList.appendChild(card);
+
+                // Add to target selector
+                const option = document.createElement('option');
+                option.value = dev.serial;
+                option.textContent = `${dev.name} (${dev.connected ? '🟢' : '🔴'})`;
+                targetDevice.appendChild(option);
+            });
+
+            deviceCount.textContent = deviceData.length;
+            log(`📱 Device list updated: ${deviceData.length} device(s)`, 'info');
+        }
+
+        // Update connection status
+        function updateConnectionStatus(status) {
+            const statusDiv = connectionStatus;
+            const dot = statusDiv.querySelector('.status-dot');
+            const text = statusDiv.querySelector('span');
+
+            statusDiv.className = `connection-status ${status}`;
+
+            switch (status) {
+                case 'connected':
+                    dot.className = 'status-dot online';
+                    text.textContent = 'Connected to Python Backend';
+                    break;
+                case 'disconnected':
+                    dot.className = 'status-dot offline';
+                    text.textContent = 'Disconnected from server';
+                    break;
+                case 'connecting':
+                    dot.className = 'status-dot pending';
+                    text.textContent = 'Connecting...';
+                    break;
+            }
+        }
+
+        // Send keyboard command
+        function sendKey(key) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected to server', 'error');
+                return;
+            }
+
+            const target = targetDevice.value;
+
+            ws.send(JSON.stringify({
+                type: 'keyboard',
+                device: target,
+                key: key,
+                modifiers: {
+                    ctrl: false,
+                    shift: false,
+                    alt: false
+                }
+            }));
+        }
+
+        // Send text
+        function sendText(text) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected to server', 'error');
+                return;
+            }
+
+            const target = targetDevice.value;
+
+            ws.send(JSON.stringify({
+                type: 'text',
+                device: target,
+                text: text
+            }));
+
+            log(`📤 Sending text: "${text}"...`, 'info');
+        }
+
+        // Log function
+        function log(message, type = 'info') {
+            // Clear empty state
+            const emptyState = logContainer.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Keep only last 100 entries
+            while (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Event Listeners
+        document.querySelectorAll('.key-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                sendKey(key);
+            });
+        });
+
+        sendTextBtn.addEventListener('click', () => {
+            const text = textInput.value.trim();
+            if (text) {
+                sendText(text);
+                textInput.value = '';
+            }
+        });
+
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendTextBtn.click();
+            }
+        });
+
+        // Start connection
+        updateConnectionStatus('connecting');
+        connectToServer();
+    </script>
+</body>
+
+</html>
