@@ -12,7 +12,7 @@ import socket
 from pathlib import Path
 from typing import Dict, List, Optional
 import websockets
-from websockets.server import serve
+from websockets.asyncio.server import serve
 from uhid_keyboard_client import UhidKeyboard
 
 class DeviceInfo:
@@ -447,10 +447,18 @@ class WebSocketControlServer:
         # Discover and setup devices
         await self.discover_all_devices()
         
-        # Start WebSocket server for browser
+        # Start WebSocket server for browser with proper ping/pong configuration
         print(f"\n🚀 Starting WebSocket server on port {self.browser_ws_port}...")
-        async with serve(self.browser_handler, "localhost", self.browser_ws_port):
+        async with serve(
+            self.browser_handler, 
+            "localhost", 
+            self.browser_ws_port,
+            ping_interval=20,  # Send ping every 20 seconds
+            ping_timeout=60,   # Wait 60 seconds for pong response
+            close_timeout=10   # Wait 10 seconds for close frame
+        ):
             print(f"✅ WebSocket server running on ws://localhost:{self.browser_ws_port}")
+            print(f"📡 Keepalive: ping every 20s, timeout 60s")
             print(f"\n📖 Open control_panel.html in your browser to control devices\n")
             await asyncio.Future()  # Run forever
     

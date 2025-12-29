@@ -313,6 +313,23 @@ Check device logs:
 adb logcat | grep scrcpy
 ```
 
+### WebSocket Keepalive Timeout
+Jika browser menampilkan error "keepalive ping timeout":
+- Server sudah dikonfigurasi dengan ping interval 20s dan timeout 60s
+- Browser akan otomatis reconnect dalam 3 detik
+- Pastikan tidak ada firewall yang memblokir WebSocket
+
+### Connection "did not receive a valid HTTP response"
+Jika device gagal connect dengan pesan ini:
+```bash
+# Kill semua process scrcpy di device
+adb shell "pkill -9 scrcpy"
+adb shell "pkill -9 app_process"
+
+# Restart server
+python3 ws-control-server.py
+```
+
 ## 🎓 Technical Details
 
 ### UHID Protocol
