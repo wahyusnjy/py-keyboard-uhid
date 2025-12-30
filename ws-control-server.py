@@ -191,14 +191,19 @@ class WebSocketControlServer:
             return False
     
     def start_server(self, serial: str, port: int) -> Optional[subprocess.Popen]:
-        """Start scrcpy server on device"""
-        print(f"🚀 [{serial}] Starting server on port {port}...")
+        """Start scrcpy server on device with video enabled"""
+        print(f"🚀 [{serial}] Starting server on port {port} with video...")
         
+        # Scrcpy server parameters for ws-scrcpy 3.3.3:
+        # version log_level socket_name port bitrate max_fps crop send_frame_meta control
+        # bitrate: 8000000 = 8Mbps, max_fps: 60, crop: -, send_frame_meta: true, control: true
         cmd = (
             f'adb -s {serial} shell "CLASSPATH=/data/local/tmp/scrcpy-server.jar '
             f'app_process / com.genymobile.scrcpy.Server '
-            f'3.3.3 web info {port} false - false true"'
+            f'3.3.3 web info {port} 8000000 60 - true true"'
         )
+        
+        print(f"📺 [{serial}] Video enabled: 8Mbps, 60fps")
         
         process = subprocess.Popen(
             cmd,
@@ -340,78 +345,133 @@ class WebSocketControlServer:
     
     async def handle_browser_message(self, websocket, message_data: dict):
         """Handle message from browser"""
-        msg_type = message_data.get("type")
-        
-        if msg_type == "keyboard":
-            # Keyboard input
-            device_serial = message_data.get("device")
-            key = message_data.get("key")
-            modifiers = message_data.get("modifiers", {})
+        try:
+            msg_type = message_data.get("type")
             
-            if device_serial == "broadcast":
-                # Broadcast to all devices
-                for dev in self.devices.values():
-                    if dev.connected and dev.uhid_client:
-                        try:
-                            await dev.uhid_client.send_key(
-                                key,
-                                ctrl=modifiers.get("ctrl", False),
-                                shift=modifiers.get("shift", False),
-                                alt=modifiers.get("alt", False),
-                                silent=True
-                            )
-                        except Exception as e:
-                            print(f"❌ Error sending to {dev.name}: {e}")
+            if msg_type == "keyboard":
+                # Keyboard input with timeout protection
+                device_serial = message_data.get("device")
+                key = message_data.get("key")
+                modifiers = message_data.get("modifiers", {})
                 
-                await websocket.send(json.dumps({
-                    "type": "ack",
-                    "status": "success",
-                    "message": f"Broadcast key '{key}' to all devices"
-                }))
-            else:
-                # Send to specific device
-                dev = self.devices.get(device_serial)
-                if dev and dev.connected and dev.uhid_client:
-                    try:
-                        await dev.uhid_client.send_key(
-                            key,
-                            ctrl=modifiers.get("ctrl", False),
-                            shift=modifiers.get("shift", False),
-                            alt=modifiers.get("alt", False),
-                            silent=True
-                        )
-                        await websocket.send(json.dumps({
-                            "type": "ack",
-                            "status": "success",
-                            "message": f"Sent key '{key}' to {dev.name}"
-                        }))
-                    except Exception as e:
+                if device_serial == "broadcast":
+                    # Broadcast to all devices (non-blocking)
+                    tasks = []
+                    for dev in self.devices.values():
+                        if dev.connected and dev.uhid_client:
+                            task = asyncio.create_task(
+                                self._send_key_safe(dev, key, modifiers)
+                            )
+                            tasks.append(task)
+                    
+                    # Wait for all with timeout
+                    if tasks:
+                        try:
+                            await asyncio.wait_for(
+                                asyncio.gather(*tasks, return_exceptions=True),
+                                timeout=5.0
+                            )
+                        except asyncio.TimeoutError:
+                            print(f"⚠️ Broadcast timeout for key '{key}'")
+                    
+                    await websocket.send(json.dumps({
+                        "type": "ack",
+                        "status": "success",
+                        "message": f"Broadcast key '{key}' to all devices"
+                    }))
+                else:
+                    # Send to specific device with timeout
+                    dev = self.devices.get(device_serial)
+                    if dev and dev.connected and dev.uhid_client:
+                        try:
+                            await asyncio.wait_for(
+                                self._send_key_safe(dev, key, modifiers),
+                                timeout=3.0
+                            )
+                            await websocket.send(json.dumps({
+                                "type": "ack",
+                                "status": "success",
+                                "message": f"Sent key '{key}' to {dev.name}"
+                            }))
+                        except asyncio.TimeoutError:
+                            await websocket.send(json.dumps({
+                                "type": "ack",
+                                "status": "error",
+                                "message": f"Timeout sending to {dev.name}"
+                            }))
+                    else:
                         await websocket.send(json.dumps({
                             "type": "ack",
                             "status": "error",
-                            "message": str(e)
+                            "message": "Device not connected"
                         }))
-        
-        elif msg_type == "text":
-            # Text input
-            device_serial = message_data.get("device")
-            text = message_data.get("text")
             
-            if device_serial == "broadcast":
-                for dev in self.devices.values():
-                    if dev.connected and dev.uhid_client:
+            elif msg_type == "text":
+                # Text input with timeout
+                device_serial = message_data.get("device")
+                text = message_data.get("text")
+                
+                if device_serial == "broadcast":
+                    tasks = []
+                    for dev in self.devices.values():
+                        if dev.connected and dev.uhid_client:
+                            task = asyncio.create_task(
+                                self._send_text_safe(dev, text)
+                            )
+                            tasks.append(task)
+                    
+                    if tasks:
                         try:
-                            await dev.uhid_client.send_text(text, silent=True)
-                        except:
-                            pass
-            else:
-                dev = self.devices.get(device_serial)
-                if dev and dev.connected and dev.uhid_client:
-                    await dev.uhid_client.send_text(text, silent=True)
-        
-        elif msg_type == "get_devices":
-            # Request device list
-            await websocket.send(json.dumps(self.get_device_list_message()))
+                            await asyncio.wait_for(
+                                asyncio.gather(*tasks, return_exceptions=True),
+                                timeout=10.0
+                            )
+                        except asyncio.TimeoutError:
+                            print(f"⚠️ Broadcast text timeout")
+                else:
+                    dev = self.devices.get(device_serial)
+                    if dev and dev.connected and dev.uhid_client:
+                        try:
+                            await asyncio.wait_for(
+                                self._send_text_safe(dev, text),
+                                timeout=5.0
+                            )
+                        except asyncio.TimeoutError:
+                            print(f"⚠️ Text send timeout to {dev.name}")
+            
+            elif msg_type == "get_devices":
+                # Request device list
+                await websocket.send(json.dumps(self.get_device_list_message()))
+                
+        except Exception as e:
+            print(f"❌ Error handling browser message: {e}")
+            try:
+                await websocket.send(json.dumps({
+                    "type": "error",
+                    "message": str(e)
+                }))
+            except:
+                pass  # Connection might be closed
+    
+    async def _send_key_safe(self, dev, key, modifiers):
+        """Send key with error handling"""
+        try:
+            await dev.uhid_client.send_key(
+                key,
+                ctrl=modifiers.get("ctrl", False),
+                shift=modifiers.get("shift", False),
+                alt=modifiers.get("alt", False),
+                silent=True
+            )
+        except Exception as e:
+            print(f"❌ Error sending key to {dev.name}: {e}")
+    
+    async def _send_text_safe(self, dev, text):
+        """Send text with error handling"""
+        try:
+            await dev.uhid_client.send_text(text, silent=True)
+        except Exception as e:
+            print(f"❌ Error sending text to {dev.name}: {e}")
     
     async def browser_handler(self, websocket):
         """Handle browser WebSocket connections"""
